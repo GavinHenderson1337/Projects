@@ -204,6 +204,63 @@ FROM layoffs_staging2;
 ALTER TABLE layoffs_staging2 -- No use for this column anymore
 DROP COLUMN row_num;
 
+-- Final Data Cleanup, correcting data types from strings to INT
+-- Step 1: Add new columns with correct data types
+ALTER TABLE layoffs_staging2
+ADD COLUMN date_new DATE,
+ADD COLUMN funds_raised_millions_int INT,
+ADD COLUMN total_laid_off_int INT,
+ADD COLUMN percentage_laid_off_dec DECIMAL(10, 2);
+
+-- Step 2: Update the new columns with converted data
+UPDATE layoffs_staging2
+SET 
+    date_new = STR_TO_DATE(`date`, '%m/%d/%Y'),
+    funds_raised_millions_int = CASE
+        WHEN funds_raised_millions REGEXP '^[0-9]+$' THEN CAST(funds_raised_millions AS UNSIGNED)
+        ELSE NULL
+    END,
+    total_laid_off_int = CASE
+        WHEN total_laid_off REGEXP '^[0-9]+$' THEN CAST(total_laid_off AS UNSIGNED)
+        ELSE NULL
+    END,
+    percentage_laid_off_dec = CASE
+        WHEN percentage_laid_off REGEXP '^[0-9]*\\.?[0-9]+$' THEN CAST(percentage_laid_off AS DECIMAL(10, 2))
+        ELSE NULL
+    END;
+
+-- Step 3: Verify the data conversions
+SELECT `date`, date_new, funds_raised_millions, funds_raised_millions_int, total_laid_off, total_laid_off_int, percentage_laid_off, percentage_laid_off_dec
+FROM layoffs_staging2;
+
+-- Step 4: Drop the old columns
+ALTER TABLE layoffs_staging2
+DROP COLUMN `date`,
+DROP COLUMN funds_raised_millions,
+DROP COLUMN total_laid_off,
+DROP COLUMN percentage_laid_off;
+
+-- Step 5: Rename the new columns to the original names
+ALTER TABLE layoffs_staging2
+CHANGE COLUMN date_new `date` DATE,
+CHANGE COLUMN funds_raised_millions_int funds_raised_millions INT,
+CHANGE COLUMN total_laid_off_int total_laid_off INT,
+CHANGE COLUMN percentage_laid_off_dec percentage_laid_off DECIMAL(10, 2);
+
+-- Step 6: Check for non-numeric values (optional for further cleanup)
+SELECT total_laid_off 
+FROM  layoffs_staging2 
+WHERE total_laid_off IS NOT NULL AND total_laid_off NOT REGEXP '^[0-9]+$';
+
+SELECT percentage_laid_off 
+FROM layoffs_staging2 
+WHERE percentage_laid_off IS NOT NULL AND percentage_laid_off NOT REGEXP '^[0-9]*\\.?[0-9]+$';
+
+SELECT funds_raised_millions 
+FROM layoffs_staging2 
+WHERE funds_raised_millions IS NOT NULL AND funds_raised_millions NOT REGEXP '^[0-9]+$';
+
+-- Data Now modified, onto Exploratory Analysis
 
 
 
